@@ -12,20 +12,51 @@ import {
   ListItemText,
   Paper,
   Container,
-  alpha
+  alpha,
+  Stack,
+  Skeleton
 } from '@mui/material';
 import {
   LayoutDashboard,
-  ChevronRight
+  ChevronRight,
+  History,
+  Info
 } from 'lucide-react';
 import AdPacingMonitor from './components/AdPacingMonitor';
+import { useQuery } from '@tanstack/react-query';
+import axios from 'axios';
 
 const drawerWidth = 280;
 
 const App: React.FC = () => {
+  // Decoupled requests using React Query
+  const { data: campaign, isLoading: campaignLoading } = useQuery({
+    queryKey: ['campaign'],
+    queryFn: () => axios.get('http://localhost:3000/api/campaign').then(res => res.data),
+    staleTime: 60000 // Cache for 1 minute
+  });
+
+  const { data: pacing, isLoading: pacingLoading } = useQuery({
+    queryKey: ['pacing'],
+    queryFn: () => axios.get('http://localhost:3000/api/pacing').then(res => res.data),
+    staleTime: 30000
+  });
+
+  const { data: charts, isLoading: chartsLoading } = useQuery({
+    queryKey: ['charts'],
+    queryFn: () => axios.get('http://localhost:3000/api/charts').then(res => res.data),
+    staleTime: 120000
+  });
+
+  const { data: logs, isLoading: logsLoading } = useQuery({
+    queryKey: ['logs'],
+    queryFn: () => axios.get('http://localhost:3000/api/logs').then(res => res.data),
+    staleTime: 300000
+  });
+
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
-      {/* Sidebar */}
+      {/* Sidebar - Loads Instantly */}
       <Drawer
         variant="permanent"
         sx={{
@@ -60,7 +91,7 @@ const App: React.FC = () => {
           <Box>
             <Typography variant="h6" sx={{ fontSize: '1.1rem', lineHeight: 1, fontWeight: 700 }}>Campaigns</Typography>
             <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700, fontSize: '0.65rem' }}>
-              Analytics Portal
+              Ads Portal
             </Typography>
           </Box>
         </Box>
@@ -97,7 +128,7 @@ const App: React.FC = () => {
         </List>
       </Drawer>
 
-      {/* Main Content */}
+      {/* Main Content - Structure renders instantly */}
       <Box component="main" sx={{ flexGrow: 1, height: '100vh', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
         <AppBar position="sticky" elevation={0} sx={{ bgcolor: 'rgba(255, 255, 255, 0.8)', backdropFilter: 'blur(8px)', borderBottom: '1px solid', borderColor: 'divider', color: 'text.primary' }}>
           <Toolbar sx={{ px: '40px !important', height: 80 }}>
@@ -105,50 +136,89 @@ const App: React.FC = () => {
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
                 <Typography variant="caption" color="text.secondary" fontWeight={600}>Marketing</Typography>
                 <ChevronRight size={12} color="#94a3b8" />
-                <Typography variant="caption" color="primary" fontWeight={700} sx={{ textTransform: 'uppercase' }}>
-                  Ad Pacing
-                </Typography>
+                {campaignLoading ? (
+                  <Skeleton width={100} height={20} />
+                ) : (
+                  <Typography variant="caption" color="primary" fontWeight={700} sx={{ textTransform: 'uppercase' }}>
+                    {campaign?.name}
+                  </Typography>
+                )}
               </Box>
               <Typography variant="h6" sx={{ fontWeight: 800 }}>
-                Monitor Pacing
+                {campaignLoading ? <Skeleton width={200} /> : `Status: ${campaign?.status}`}
               </Typography>
             </Box>
           </Toolbar>
         </AppBar>
 
         <Container maxWidth="xl" sx={{ py: 6, px: '40px !important' }}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <Box sx={{ display: 'grid', gridTemplateColumns: { lg: '2fr 1fr' }, gap: 4 }}>
-              <AdPacingMonitor />
-              <Paper sx={{ p: 4, borderRadius: 6 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 2, fontWeight: 800, mb: 4, display: 'block' }}>
-                  Performance Highlights
-                </Typography>
-                <List>
-                  {[
-                    { label: 'Current Spend', value: '$1,250.40', trend: '+12%', color: 'primary.main' },
-                    { label: 'Pacing Efficiency', value: '82.5%', trend: 'Normal', color: 'success.main' },
-                    { label: 'Impressions', value: '4.2M', trend: '+2.4%', color: 'text.primary' },
-                    { label: 'Conversion Rate', value: '1.24%', trend: '-0.2%', color: 'text.secondary' },
-                  ].map((stat, i) => (
-                    <ListItem key={i} sx={{ px: 0, py: 2, borderBottom: i < 3 ? '1px solid' : 'none', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                      <Box>
-                        <Typography variant="caption" color="text.secondary" fontWeight={600}>{stat.label}</Typography>
-                        <Typography variant="h5" fontWeight={800} color={stat.color}>{stat.value}</Typography>
-                      </Box>
-                      <Box sx={{
-                        px: 1,
-                        py: 0.5,
-                        borderRadius: 1,
-                        bgcolor: stat.trend.startsWith('+') ? alpha('#10b981', 0.1) : alpha('#94a3b8', 0.1),
-                        color: stat.trend.startsWith('+') ? 'success.main' : 'text.secondary'
-                      }}>
-                        <Typography variant="caption" fontWeight={700}>{stat.trend}</Typography>
-                      </Box>
-                    </ListItem>
-                  ))}
-                </List>
-              </Paper>
+              {/* Prioritize High-Stakes Data and Visual Feedback */}
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <AdPacingMonitor historicalData={charts?.historicalData} isLoading={chartsLoading} />
+              </Box>
+
+              <Stack gap={4}>
+                <Paper sx={{ p: 4, borderRadius: 6 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 2, fontWeight: 800, mb: 4, display: 'block' }}>
+                    Real-time Pacing
+                  </Typography>
+                  <List>
+                    {[
+                      { label: 'Current Spend', value: pacing?.currentSpend ? `$${pacing.currentSpend}` : null, color: 'primary.main' },
+                      { label: 'Target Spend', value: pacing?.targetSpend ? `$${pacing.targetSpend}` : null, color: 'text.secondary' },
+                      { label: 'Pacing Efficiency', value: pacing?.efficiency, color: 'success.main' },
+                    ].map((stat, i) => (
+                      <ListItem key={i} sx={{ px: 0, py: 2, borderBottom: i < 2 ? '1px solid' : 'none', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                        <Box sx={{ width: '100%' }}>
+                          <Typography variant="caption" color="text.secondary" fontWeight={600}>{stat.label}</Typography>
+                          {pacingLoading ? (
+                            <Skeleton variant="text" sx={{ fontSize: '2rem' }} width="60%" />
+                          ) : (
+                            <Typography variant="h5" fontWeight={800} color={stat.color}>{stat.value}</Typography>
+                          )}
+                        </Box>
+                      </ListItem>
+                    ))}
+                  </List>
+                </Paper>
+
+                <Paper sx={{ p: 4, borderRadius: 6 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
+                    <History size={18} color="#64748b" />
+                    <Typography variant="subtitle2" fontWeight={800} sx={{ textTransform: 'uppercase', letterSpacing: 1 }}>
+                      Audit Logs
+                    </Typography>
+                  </Box>
+                  <List sx={{ p: 0 }}>
+                    {logsLoading ? (
+                      [1, 2, 3].map((n) => (
+                        <ListItem key={n} sx={{ px: 0, py: 1.5 }}>
+                          <Box sx={{ width: '100%' }}>
+                            <Skeleton variant="text" width="80%" />
+                            <Skeleton variant="text" width="40%" />
+                          </Box>
+                        </ListItem>
+                      ))
+                    ) : (
+                      logs?.map((log: any, i: number) => (
+                        <ListItem key={log.id} sx={{ px: 0, py: 1.5, borderBottom: i < logs.length - 1 ? '1px solid' : 'none', borderColor: 'divider' }}>
+                          <Box sx={{ width: '100%' }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                              <Typography variant="body2" fontWeight={700}>{log.action}</Typography>
+                              <Typography variant="caption" color="text.secondary">{log.time}</Typography>
+                            </Box>
+                            <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
+                              <Info size={12} /> by {log.user}
+                            </Typography>
+                          </Box>
+                        </ListItem>
+                      ))
+                    )}
+                  </List>
+                </Paper>
+              </Stack>
             </Box>
           </Box>
         </Container>
