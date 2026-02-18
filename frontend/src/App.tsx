@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Drawer,
@@ -12,17 +12,77 @@ import {
   ListItemText,
   Paper,
   Container,
-  alpha
+  alpha,
+  CircularProgress,
+  Stack
 } from '@mui/material';
 import {
   LayoutDashboard,
-  ChevronRight
+  ChevronRight,
+  History,
+  Info
 } from 'lucide-react';
 import AdPacingMonitor from './components/AdPacingMonitor';
+import axios from 'axios';
 
 const drawerWidth = 280;
 
 const App: React.FC = () => {
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<{
+    campaign: any;
+    pacing: any;
+    charts: any;
+    logs: any;
+  } | null>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        // THE BOTTLENECK: Waiting for everything before rendering
+        const [campaign, pacing, charts, logs] = await Promise.all([
+          axios.get('http://localhost:3000/api/campaign'),
+          axios.get('http://localhost:3000/api/pacing'),
+          axios.get('http://localhost:3000/api/charts'),
+          axios.get('http://localhost:3000/api/logs')
+        ]);
+
+        setData({
+          campaign: campaign.data,
+          pacing: pacing.data,
+          charts: charts.data,
+          logs: logs.data
+        });
+      } catch (error) {
+        console.error("Failed to load data", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  if (loading) {
+    return (
+      <Box sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        gap: 3,
+        bgcolor: 'background.default'
+      }}>
+        <CircularProgress size={60} thickness={4} />
+        <Typography variant="h6" color="text.secondary" fontWeight={600}>
+          Loading Campaign Data...
+        </Typography>
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
       {/* Sidebar */}
@@ -60,7 +120,7 @@ const App: React.FC = () => {
           <Box>
             <Typography variant="h6" sx={{ fontSize: '1.1rem', lineHeight: 1, fontWeight: 700 }}>Campaigns</Typography>
             <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700, fontSize: '0.65rem' }}>
-              Analytics Portal
+              Ads Portal
             </Typography>
           </Box>
         </Box>
@@ -106,49 +166,66 @@ const App: React.FC = () => {
                 <Typography variant="caption" color="text.secondary" fontWeight={600}>Marketing</Typography>
                 <ChevronRight size={12} color="#94a3b8" />
                 <Typography variant="caption" color="primary" fontWeight={700} sx={{ textTransform: 'uppercase' }}>
-                  Ad Pacing
+                  {data?.campaign?.name || 'Campaign'}
                 </Typography>
               </Box>
               <Typography variant="h6" sx={{ fontWeight: 800 }}>
-                Monitor Pacing
+                Status: {data?.campaign?.status}
               </Typography>
             </Box>
           </Toolbar>
         </AppBar>
 
         <Container maxWidth="xl" sx={{ py: 6, px: '40px !important' }}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <Box sx={{ display: 'grid', gridTemplateColumns: { lg: '2fr 1fr' }, gap: 4 }}>
-              <AdPacingMonitor />
-              <Paper sx={{ p: 4, borderRadius: 6 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 2, fontWeight: 800, mb: 4, display: 'block' }}>
-                  Performance Highlights
-                </Typography>
-                <List>
-                  {[
-                    { label: 'Current Spend', value: '$1,250.40', trend: '+12%', color: 'primary.main' },
-                    { label: 'Pacing Efficiency', value: '82.5%', trend: 'Normal', color: 'success.main' },
-                    { label: 'Impressions', value: '4.2M', trend: '+2.4%', color: 'text.primary' },
-                    { label: 'Conversion Rate', value: '1.24%', trend: '-0.2%', color: 'text.secondary' },
-                  ].map((stat, i) => (
-                    <ListItem key={i} sx={{ px: 0, py: 2, borderBottom: i < 3 ? '1px solid' : 'none', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                      <Box>
-                        <Typography variant="caption" color="text.secondary" fontWeight={600}>{stat.label}</Typography>
-                        <Typography variant="h5" fontWeight={800} color={stat.color}>{stat.value}</Typography>
-                      </Box>
-                      <Box sx={{
-                        px: 1,
-                        py: 0.5,
-                        borderRadius: 1,
-                        bgcolor: stat.trend.startsWith('+') ? alpha('#10b981', 0.1) : alpha('#94a3b8', 0.1),
-                        color: stat.trend.startsWith('+') ? 'success.main' : 'text.secondary'
-                      }}>
-                        <Typography variant="caption" fontWeight={700}>{stat.trend}</Typography>
-                      </Box>
-                    </ListItem>
-                  ))}
-                </List>
-              </Paper>
+              <AdPacingMonitor historicalData={data?.charts?.historicalData} />
+
+              <Stack gap={4}>
+                <Paper sx={{ p: 4, borderRadius: 6 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 2, fontWeight: 800, mb: 4, display: 'block' }}>
+                    Real-time Pacing
+                  </Typography>
+                  <List>
+                    {[
+                      { label: 'Current Spend', value: `$${data?.pacing?.currentSpend}`, trend: 'Live', color: 'primary.main' },
+                      { label: 'Target Spend', value: `$${data?.pacing?.targetSpend}`, trend: 'Daily', color: 'text.secondary' },
+                      { label: 'Pacing Efficiency', value: data?.pacing?.efficiency, trend: 'Normal', color: 'success.main' },
+                    ].map((stat, i) => (
+                      <ListItem key={i} sx={{ px: 0, py: 2, borderBottom: i < 2 ? '1px solid' : 'none', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                        <Box>
+                          <Typography variant="caption" color="text.secondary" fontWeight={600}>{stat.label}</Typography>
+                          <Typography variant="h5" fontWeight={800} color={stat.color}>{stat.value}</Typography>
+                        </Box>
+                      </ListItem>
+                    ))}
+                  </List>
+                </Paper>
+
+                <Paper sx={{ p: 4, borderRadius: 6 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
+                    <History size={18} color="#64748b" />
+                    <Typography variant="subtitle2" fontWeight={800} sx={{ textTransform: 'uppercase', letterSpacing: 1 }}>
+                      Audit Logs
+                    </Typography>
+                  </Box>
+                  <List sx={{ p: 0 }}>
+                    {data?.logs?.map((log: any, i: number) => (
+                      <ListItem key={log.id} sx={{ px: 0, py: 1.5, borderBottom: i < data.logs.length - 1 ? '1px solid' : 'none', borderColor: 'divider' }}>
+                        <Box sx={{ width: '100%' }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                            <Typography variant="body2" fontWeight={700}>{log.action}</Typography>
+                            <Typography variant="caption" color="text.secondary">{log.time}</Typography>
+                          </Box>
+                          <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
+                            <Info size={12} /> by {log.user}
+                          </Typography>
+                        </Box>
+                      </ListItem>
+                    ))}
+                  </List>
+                </Paper>
+              </Stack>
             </Box>
           </Box>
         </Container>
